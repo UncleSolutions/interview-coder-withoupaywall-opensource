@@ -21,7 +21,8 @@
       "dist/**/*",
       "dist-electron/**/*",
       "package.json",
-      "electron/**/*"
+      "electron/**/*",
+      "public/**/*"
     ],
     "directories": {
       "output": "release",
@@ -102,6 +103,13 @@
       {
         "from": ".env",
         "to": ".env",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "public",
+        "to": "public",
         "filter": [
           "**/*"
         ]
