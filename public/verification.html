@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>User Verification</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            width: 80%;
+            max-width: 300px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>User Verification</h2>
+        <div class="form-group">
+            <label for="userId">Enter your User ID:</label>
+            <input type="text" id="userId" placeholder="Enter your user ID">
+        </div>
+        <button onclick="verify()">Verify</button>
+    </div>
+
+    <script>
+        async function verify() {
+            const userId = document.getElementById('userId').value.trim();
+            if (!userId) {
+                alert('Please enter a user ID');
+                return;
+            }
+
+            try {
+                const result = await window.verifyUser(userId);
+                if (result.exists) {
+                    // Send only the userId string, not the entire result object
+                    window.electron.ipcRenderer.send('verify-user', userId);
+                } else {
+                    alert(result.message || 'Invalid user ID');
+                    document.getElementById('userId').value = '';
+                }
+            } catch (error) {
+                alert('Error verifying user. Please try again.');
+                document.getElementById('userId').value = '';
+            }
+        }
+    </script>
+</body>
+</html> 

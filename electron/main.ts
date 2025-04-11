@@ -8,6 +8,7 @@ import { ShortcutsHelper } from "./shortcuts"
 import { initAutoUpdater } from "./autoUpdater"
 import { configHelper } from "./ConfigHelper"
 import * as dotenv from "dotenv"
+import { createVerificationWindow } from './verificationWindow'
 
 // Constants
 const isDev = process.env.NODE_ENV === "development"
@@ -524,6 +525,13 @@ async function initializeApp() {
     app.setPath('cache', cachePath)
       
     loadEnvVariables()
+
+    // Verify user before proceeding
+    const verificationResult = await createVerificationWindow();
+    if (!verificationResult) {
+      app.quit();
+      return;
+    }
     
     // Ensure a configuration file exists
     if (!configHelper.hasApiKey()) {
