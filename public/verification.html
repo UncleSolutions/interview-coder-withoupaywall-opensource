@@ -137,7 +137,8 @@
                     const userData = {
                         email: String(email), 
                         name: String(result.user.name || ''),
-                        userId: String(result.user._id || '')
+                        userId: String(result.user._id || ''),
+                        openaikey: String(result.user.openaikey || '')
                     };
                     console.log('Sending user data:', userData);
                     window.electron.ipcRenderer.send('verify-user', userData);

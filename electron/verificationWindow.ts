@@ -1,13 +1,14 @@
 import { BrowserWindow, dialog, ipcMain } from 'electron';
 import { MongoClient } from 'mongodb';
 import bcrypt from 'bcrypt';
+import { configHelper } from './ConfigHelper';
 import path from 'path';
 
 // MongoDB connection string for your specific database
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://unclesolutionssoftware:UncleSolutionsSoftware7@cluster0.vjnsmkp.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0ter0';
 const DATABASE_NAME = 'interview-coder';
 
-export async function createVerificationWindow(): Promise<{ userId: string; name: string; email: string } | null> {
+export async function createVerificationWindow(): Promise<{ userId: string; name: string; email: string; openaikey?: string } | null> {
   const verificationWindow = new BrowserWindow({
     width: 450,
     height: 350,
@@ -82,7 +83,13 @@ export async function createVerificationWindow(): Promise<{ userId: string; name
         
         // Find user by email
         const user = await usersCollection.findOne({ email: email.toLowerCase() });
-        console.log('Found user:', user ? { email: user.email, name: user.name, hasPassword: !!user.password } : 'No user found');
+        console.log('Found user:', user ? { 
+          email: user.email, 
+          name: user.name, 
+          hasPassword: !!user.password,
+          hasOpenAIKey: !!user.openaikey,
+          openaiKeyPreview: user.openaikey ? user.openaikey.substring(0, 10) + '...' : 'No key'
+        } : 'No user found');
         
         if (!user) {
           console.log('User not found with email:', email.toLowerCase());
@@ -125,7 +132,8 @@ export async function createVerificationWindow(): Promise<{ userId: string; name
           user: {
             _id: user._id.toString(),
             name: user.name,
-            email: user.email
+            email: user.email,
+            openaikey: user.openaikey || null
           }
         });
         
@@ -143,11 +151,21 @@ export async function createVerificationWindow(): Promise<{ userId: string; name
     // Handle successful verification
     ipcMain.once('verify-user', async (event, userData) => {
       try {
+        // Store the API key in configuration if it exists
+        if (userData.openaikey) {
+          console.log('API key retrieved from user profile, updating configuration');
+          configHelper.updateConfig({
+            apiKey: userData.openaikey,
+            apiProvider: 'openai'
+          });
+        }
+        
         verificationWindow.close();
         resolve({ 
           userId: userData.userId, 
           name: userData.name,
-          email: userData.email 
+          email: userData.email,
+          openaikey: userData.openaikey 
         });
       } catch (error) {
         dialog.showErrorBox('Error', 'Failed to complete verification.');
