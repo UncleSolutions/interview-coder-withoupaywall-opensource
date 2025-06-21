@@ -61,7 +61,7 @@ export default function SubscribePage({ user }: SubscribePageProps) {
       <div className="w-full px-6">
         <div className="text-center">
           <h2 className="text-2xl font-bold text-white">
-            Welcome to Interview Coder
+            Welcome to UncleSolutions Interview Coder
           </h2>
           <p className="text-gray-400 text-sm mt-2 mb-6">
             To continue using Interview Coder, you'll need to subscribe
