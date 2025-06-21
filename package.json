@@ -15,7 +15,7 @@
     "package-win": "npm run build && electron-builder build --win"
   },
   "build": {
-    "appId": "com.chunginlee.interviewcoder", 
+    "appId": "com.chunginlee.interviewcoder",
     "productName": "Interview Coder",
     "files": [
       "dist/**/*",
@@ -140,7 +140,9 @@
     "@radix-ui/react-toast": "^1.2.2",
     "@supabase/supabase-js": "^2.49.4",
     "@tanstack/react-query": "^5.64.0",
+    "@types/bcrypt": "^5.0.2",
     "axios": "^1.7.7",
+    "bcrypt": "^6.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "diff": "^7.0.0",
@@ -150,6 +152,7 @@
     "electron-updater": "^6.3.9",
     "form-data": "^4.0.1",
     "lucide-react": "^0.460.0",
+    "mongodb": "^6.17.0",
     "openai": "^4.28.4",
     "react": "^18.2.0",
     "react-code-blocks": "^0.1.6",

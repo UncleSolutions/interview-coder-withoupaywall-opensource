@@ -1,18 +1,24 @@
 import { BrowserWindow, dialog, ipcMain } from 'electron';
-import axios from 'axios';
+import { MongoClient } from 'mongodb';
+import bcrypt from 'bcrypt';
 import path from 'path';
 
-export async function createVerificationWindow(): Promise<{ userId: string; name: string } | null> {
+// MongoDB connection string for your specific database
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://unclesolutionssoftware:UncleSolutionsSoftware7@cluster0.vjnsmkp.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0ter0';
+const DATABASE_NAME = 'interview-coder';
+
+export async function createVerificationWindow(): Promise<{ userId: string; name: string; email: string } | null> {
   const verificationWindow = new BrowserWindow({
-    width: 400,
-    height: 200,
+    width: 450,
+    height: 350,
     resizable: false,
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false
     },
     frame: true,
-    show: false
+    show: false,
+    backgroundColor: '#000000'
   });
 
   // Load the verification HTML from the public directory
@@ -35,35 +41,123 @@ export async function createVerificationWindow(): Promise<{ userId: string; name
 
       // Expose the verifyUser function
       verificationWindow.webContents.executeJavaScript(`
-        window.verifyUser = async (userId) => {
+        window.verifyUser = async (email, password) => {
           try {
-            const response = await fetch('https://interview-coder-access-verify.vercel.app/verify-user/' + userId);
-            const data = await response.json();
-            return data;
+            // Send the verification request to the main process
+            return new Promise((resolve) => {
+              const { ipcRenderer } = require('electron');
+              
+              // Listen for the response
+              ipcRenderer.once('verify-response', (event, result) => {
+                resolve(result);
+              });
+              
+              // Send the verification request
+              ipcRenderer.send('verify-credentials', { email, password });
+            });
           } catch (error) {
-            return { exists: false, message: 'Error verifying user' };
+            return { success: false, message: 'Error verifying credentials' };
           }
         };
       `);
     });
 
-    // Handle verification through IPC
-    ipcMain.once('verify-user', async (event, userId) => {
+    // Handle credential verification
+    ipcMain.on('verify-credentials', async (event, { email, password }) => {
       try {
-        const response = await axios.get(`https://interview-coder-access-verify.vercel.app/verify-user/${userId}`);
-        const data = response.data;
-
-        if (data.exists) {
-          verificationWindow.close();
-          resolve({ userId: data.user.userId, name: data.user.name });
-        } else {
-          dialog.showErrorBox('Verification Failed', data.message || 'Invalid user ID');
-          verificationWindow.webContents.executeJavaScript('document.getElementById("userId").value = ""');
+        console.log('Attempting to connect to MongoDB...');
+        console.log('Email:', email);
+        console.log('Database:', DATABASE_NAME);
+        
+        const client = new MongoClient(MONGODB_URI);
+        await client.connect();
+        console.log('Connected to MongoDB successfully');
+        
+        const db = client.db(DATABASE_NAME);
+        const usersCollection = db.collection('user');
+        
+        // First, let's see all users in the collection for debugging
+        const allUsers = await usersCollection.find({}).toArray();
+        console.log('All users in collection:', allUsers.map(u => ({ email: u.email, name: u.name, hasPassword: !!u.password })));
+        
+        // Find user by email
+        const user = await usersCollection.findOne({ email: email.toLowerCase() });
+        console.log('Found user:', user ? { email: user.email, name: user.name, hasPassword: !!user.password } : 'No user found');
+        
+        if (!user) {
+          console.log('User not found with email:', email.toLowerCase());
+          event.reply('verify-response', { 
+            success: false, 
+            message: 'Invalid email or password' 
+          });
+          await client.close();
+          return;
         }
+
+        // Check if password is hashed or plain text
+        console.log('User password (first 20 chars):', user.password ? user.password.substring(0, 20) : 'No password');
+        
+        let isValidPassword = false;
+        
+        // Try bcrypt comparison first
+        if (user.password && user.password.startsWith('$2b$')) {
+          console.log('Using bcrypt comparison');
+          isValidPassword = await bcrypt.compare(password, user.password);
+        } else {
+          console.log('Using plain text comparison (not recommended for production)');
+          isValidPassword = password === user.password;
+        }
+        
+        console.log('Password valid:', isValidPassword);
+        
+        if (!isValidPassword) {
+          event.reply('verify-response', { 
+            success: false, 
+            message: 'Invalid email or password' 
+          });
+          await client.close();
+          return;
+        }
+
+        // Successful authentication
+        event.reply('verify-response', { 
+          success: true, 
+          user: {
+            _id: user._id.toString(),
+            name: user.name,
+            email: user.email
+          }
+        });
+        
+        await client.close();
+        console.log('Authentication successful');
       } catch (error) {
-        dialog.showErrorBox('Error', 'Failed to verify user. Please try again.');
-        verificationWindow.webContents.executeJavaScript('document.getElementById("userId").value = ""');
+        console.error('MongoDB verification error:', error);
+        event.reply('verify-response', { 
+          success: false, 
+          message: 'Database connection error: ' + error.message 
+        });
       }
+    });
+
+    // Handle successful verification
+    ipcMain.once('verify-user', async (event, userData) => {
+      try {
+        verificationWindow.close();
+        resolve({ 
+          userId: userData.userId, 
+          name: userData.name,
+          email: userData.email 
+        });
+      } catch (error) {
+        dialog.showErrorBox('Error', 'Failed to complete verification.');
+        resolve(null);
+      }
+    });
+
+    // Handle window closed without verification
+    verificationWindow.on('closed', () => {
+      resolve(null);
     });
   });
 } 
