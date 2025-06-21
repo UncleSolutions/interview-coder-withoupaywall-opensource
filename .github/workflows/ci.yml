@@ -45,3 +45,29 @@ jobs:
     - name: Run Tests
       run: npm test
 
+    # Package applications (only on main branch pushes)
+    - name: Package macOS
+      if: matrix.os == 'macos-latest' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+      run: npm run package-mac
+
+    - name: Package Windows
+      if: matrix.os == 'windows-latest' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+      run: npm run package-win
+
+    # Upload artifacts
+    - name: Upload macOS DMG
+      if: matrix.os == 'macos-latest' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+      uses: actions/upload-artifact@v4
+      with:
+        name: macos-dmg
+        path: release/*.dmg
+        retention-days: 30
+
+    - name: Upload Windows Installer
+      if: matrix.os == 'windows-latest' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+      uses: actions/upload-artifact@v4
+      with:
+        name: windows-installer
+        path: release/*.exe
+        retention-days: 30
+
