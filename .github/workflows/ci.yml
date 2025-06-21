@@ -36,7 +36,7 @@ jobs:
       continue-on-error: true
 
     - name: Type Check
-      run: npx tsc --noEmit
+      run: npx tsc --noEmit 
       continue-on-error: true
 
     - name: Build
