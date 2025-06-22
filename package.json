@@ -29,6 +29,11 @@
       "buildResources": "assets"
     },
     "asar": true,
+    "asarUnpack": [
+      "**/node_modules/mongodb/**/*",
+      "**/node_modules/bcrypt/**/*",
+      "**/node_modules/screenshot-desktop/**/*"
+    ],
     "compression": "maximum",
     "generateUpdatesFilesForAllChannels": true,
     "mac": {
