@@ -111,8 +111,15 @@ export async function createVerificationWindow(): Promise<{ userId: string; name
         console.log('Attempting to connect to MongoDB...');
         console.log('Email:', email);
         console.log('Database:', DATABASE_NAME);
+        console.log('Environment:', process.env.NODE_ENV);
+        console.log('App packaged:', process.resourcesPath ? true : false);
 
-        const client = new MongoClient(MONGODB_URI);
+        const client = new MongoClient(MONGODB_URI, {
+          serverSelectionTimeoutMS: 10000, // 10 second timeout
+          connectTimeoutMS: 10000,
+          socketTimeoutMS: 10000,
+        });
+        
         await client.connect();
         console.log('Connected to MongoDB successfully');
 
@@ -183,9 +190,27 @@ export async function createVerificationWindow(): Promise<{ userId: string; name
         console.log('Authentication successful');
       } catch (error) {
         console.error('MongoDB verification error:', error);
+        console.error('Error type:', typeof error);
+        console.error('Error message:', error.message || 'Unknown error');
+        console.error('Error stack:', error.stack || 'No stack trace');
+        
+        // Provide more specific error messages
+        let errorMessage = 'Database connection error';
+        if (error.message) {
+          if (error.message.includes('ENOTFOUND') || error.message.includes('ECONNREFUSED')) {
+            errorMessage = 'Cannot connect to database server. Please check your internet connection.';
+          } else if (error.message.includes('authentication')) {
+            errorMessage = 'Database authentication failed.';
+          } else if (error.message.includes('timeout')) {
+            errorMessage = 'Database connection timeout. Please try again.';
+          } else {
+            errorMessage = `Database error: ${error.message}`;
+          }
+        }
+        
         event.reply('verify-response', {
           success: false,
-          message: 'Database connection error: ' + error.message
+          message: errorMessage
         });
       }
     });

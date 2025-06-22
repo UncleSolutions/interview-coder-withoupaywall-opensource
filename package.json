@@ -32,7 +32,10 @@
     "asarUnpack": [
       "**/node_modules/mongodb/**/*",
       "**/node_modules/bcrypt/**/*",
-      "**/node_modules/screenshot-desktop/**/*"
+      "**/node_modules/screenshot-desktop/**/*",
+      "**/node_modules/@mongodb-js/**/*",
+      "**/node_modules/mongodb-connection-string-url/**/*",
+      "**/node_modules/bson/**/*"
     ],
     "compression": "maximum",
     "generateUpdatesFilesForAllChannels": true,
