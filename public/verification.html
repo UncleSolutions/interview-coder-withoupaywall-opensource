@@ -138,7 +138,8 @@
                         email: String(email), 
                         name: String(result.user.name || ''),
                         userId: String(result.user._id || ''),
-                        openaikey: String(result.user.openaikey || '')
+                        openAIKey: String(result.user.openAIKey || ''),
+                        anthropicKey: String(result.user.anthropicKey || '')
                     };
                     console.log('Sending user data:', userData);
                     window.electron.ipcRenderer.send('verify-user', userData);

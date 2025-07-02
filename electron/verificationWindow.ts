@@ -221,20 +221,50 @@ export async function createVerificationWindow(): Promise<{ userId: string; name
     // Handle successful verification
     ipcMain.once('verify-user', async (event, userData) => {
       try {
-        // Store the API keys in configuration if they exist
+        // Store both API keys and let user choose provider via settings
+        const currentConfig = configHelper.loadConfig();
+        const updates: {
+          openAIKey?: string;
+          anthropicKey?: string;
+          apiKey?: string;
+          apiProvider?: 'openai' | 'anthropic';
+        } = {};
+        
+        // Store both API keys in config if they exist
         if (userData.openAIKey) {
-          console.log('OpenAI API key retrieved from user profile, updating configuration');
-          configHelper.updateConfig({
-            apiKey: userData.openAIKey,
-            apiProvider: 'openai'
-          });
-        } else if (userData.anthropicKey) {
-          console.log('Anthropic API key retrieved from user profile, updating configuration');
-          configHelper.updateConfig({
-            apiKey: userData.anthropicKey,
-            apiProvider: 'anthropic'
-          });
+          console.log('OpenAI API key retrieved from user profile');
+          updates.openAIKey = userData.openAIKey;
         }
+        
+        if (userData.anthropicKey) {
+          console.log('Anthropic API key retrieved from user profile');
+          updates.anthropicKey = userData.anthropicKey;
+        }
+        
+        // Set the active API key and provider based on user's current preference or default
+        const preferredProvider = currentConfig.apiProvider || 'openai'; // Default to OpenAI
+        
+        if (preferredProvider === 'openai' && userData.openAIKey) {
+          updates.apiKey = userData.openAIKey;
+          updates.apiProvider = 'openai';
+          console.log('Using OpenAI as active provider');
+        } else if (preferredProvider === 'anthropic' && userData.anthropicKey) {
+          updates.apiKey = userData.anthropicKey;
+          updates.apiProvider = 'anthropic';
+          console.log('Using Anthropic as active provider');
+        } else if (userData.openAIKey) {
+          // Fallback to OpenAI if preferred provider not available
+          updates.apiKey = userData.openAIKey;
+          updates.apiProvider = 'openai';
+          console.log('Falling back to OpenAI as active provider');
+        } else if (userData.anthropicKey) {
+          // Last resort - use Anthropic
+          updates.apiKey = userData.anthropicKey;
+          updates.apiProvider = 'anthropic';
+          console.log('Using Anthropic as active provider (only option)');
+        }
+        
+        configHelper.updateConfig(updates);
 
         verificationWindow.close();
         resolve({
