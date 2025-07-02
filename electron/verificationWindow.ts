@@ -8,7 +8,7 @@ import path from 'path';
 const MONGODB_URI = 'mongodb+srv://unclesolutionssoftware:UncleSolutionsSoftware7@cluster0.vjnsmkp.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0ter0';
 const DATABASE_NAME = 'interview-coder';
 
-export async function createVerificationWindow(): Promise<{ userId: string; name: string; email: string; openaikey?: string } | null> {
+export async function createVerificationWindow(): Promise<{ userId: string; name: string; email: string; openAIKey?: string; anthropicKey?: string } | null> {
   const verificationWindow = new BrowserWindow({
     width: 450,
     height: 350,
@@ -124,7 +124,7 @@ export async function createVerificationWindow(): Promise<{ userId: string; name
         console.log('Connected to MongoDB successfully');
 
         const db = client.db(DATABASE_NAME);
-        const usersCollection = db.collection('user');
+        const usersCollection = db.collection('users');
 
         // First, let's see all users in the collection for debugging
         const allUsers = await usersCollection.find({}).toArray();
@@ -136,8 +136,10 @@ export async function createVerificationWindow(): Promise<{ userId: string; name
           email: user.email,
           name: user.name,
           hasPassword: !!user.password,
-          hasOpenAIKey: !!user.openaikey,
-          openaiKeyPreview: user.openaikey ? user.openaikey.substring(0, 10) + '...' : 'No key'
+          hasOpenAIKey: !!user.openAIKey,
+          hasAnthropicKey: !!user.anthropicKey,
+          openaiKeyPreview: user.openAIKey ? user.openAIKey.substring(0, 10) + '...' : 'No key',
+          anthropicKeyPreview: user.anthropicKey ? user.anthropicKey.substring(0, 10) + '...' : 'No key'
         } : 'No user found');
 
         if (!user) {
@@ -182,7 +184,8 @@ export async function createVerificationWindow(): Promise<{ userId: string; name
             _id: user._id.toString(),
             name: user.name,
             email: user.email,
-            openaikey: user.openaikey || null
+            openAIKey: user.openAIKey || null,
+            anthropicKey: user.anthropicKey || null
           }
         });
 
@@ -218,12 +221,18 @@ export async function createVerificationWindow(): Promise<{ userId: string; name
     // Handle successful verification
     ipcMain.once('verify-user', async (event, userData) => {
       try {
-        // Store the API key in configuration if it exists
-        if (userData.openaikey) {
-          console.log('API key retrieved from user profile, updating configuration');
+        // Store the API keys in configuration if they exist
+        if (userData.openAIKey) {
+          console.log('OpenAI API key retrieved from user profile, updating configuration');
           configHelper.updateConfig({
-            apiKey: userData.openaikey,
+            apiKey: userData.openAIKey,
             apiProvider: 'openai'
+          });
+        } else if (userData.anthropicKey) {
+          console.log('Anthropic API key retrieved from user profile, updating configuration');
+          configHelper.updateConfig({
+            apiKey: userData.anthropicKey,
+            apiProvider: 'anthropic'
           });
         }
 
@@ -232,7 +241,8 @@ export async function createVerificationWindow(): Promise<{ userId: string; name
           userId: userData.userId,
           name: userData.name,
           email: userData.email,
-          openaikey: userData.openaikey
+          openAIKey: userData.openAIKey,
+          anthropicKey: userData.anthropicKey
         });
       } catch (error) {
         dialog.showErrorBox('Error', 'Failed to complete verification.');
