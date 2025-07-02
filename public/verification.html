@@ -79,6 +79,7 @@
             margin-top: 5px;
             display: none;
         }
+
     </style>
 </head>
 <body>
@@ -131,6 +132,10 @@
                 verifyBtn.disabled = true;
                 verifyBtn.textContent = 'Logging in...';
 
+                if (!window.verifyUser) {
+                    throw new Error('verifyUser function not available');
+                }
+
                 const result = await window.verifyUser(email, password);
                 if (result.success) {
                     // Make sure all data is serializable for IPC
@@ -141,8 +146,25 @@
                         openAIKey: String(result.user.openAIKey || ''),
                         anthropicKey: String(result.user.anthropicKey || '')
                     };
-                    console.log('Sending user data:', userData);
-                    window.electron.ipcRenderer.send('verify-user', userData);
+                    // Send user data to main process
+                    try {
+                        let ipcRenderer;
+                        if (window.electronIPC) {
+                            ipcRenderer = window.electronIPC;
+                        } else {
+                            const electron = require('electron');
+                            ipcRenderer = electron.ipcRenderer;
+                        }
+                        
+                        if (ipcRenderer && ipcRenderer.send) {
+                            ipcRenderer.send('verify-user', userData);
+                        } else {
+                            throw new Error('IPC communication not available');
+                        }
+                    } catch (ipcError) {
+                        document.getElementById('passwordError').style.display = 'block';
+                        document.getElementById('passwordError').textContent = 'Failed to complete verification. Please try again.';
+                    }
                 } else {
                     document.getElementById('passwordError').style.display = 'block';
                     document.getElementById('passwordError').textContent = result.message || 'Invalid email or password';
@@ -157,6 +179,58 @@
                 verifyBtn.textContent = 'Login';
             }
         }
+
+
+
+        // Create verifyUser function directly using require('electron')
+        window.verifyUser = async function(email, password) {
+            try {
+                let ipcRenderer;
+                if (window.electronIPC) {
+                    ipcRenderer = window.electronIPC;
+                } else {
+                    try {
+                        const electron = require('electron');
+                        if (!electron) {
+                            throw new Error('electron require returned null/undefined');
+                        }
+                        ipcRenderer = electron.ipcRenderer;
+                    } catch (requireError) {
+                        throw new Error(`Cannot require electron: ${requireError.message}`);
+                    }
+                }
+                
+                if (!ipcRenderer) {
+                    throw new Error('IPC Renderer not available');
+                }
+                
+                return new Promise((resolve) => {
+                    // Set a timeout for the verification
+                    const timeout = setTimeout(() => {
+                        resolve({ 
+                            success: false, 
+                            message: 'Connection timeout'
+                        });
+                    }, 30000);
+                    
+                    // Listen for the response
+                    ipcRenderer.once('verify-response', (event, result) => {
+                        clearTimeout(timeout);
+                        resolve(result);
+                    });
+                    
+                    // Send the verification request
+                    ipcRenderer.send('verify-credentials', { email, password });
+                });
+            } catch (error) {
+                return { 
+                    success: false, 
+                    message: 'Error verifying credentials'
+                };
+            }
+        };
+
+
 
         // Allow Enter key to submit the form
         document.addEventListener('keypress', function(e) {

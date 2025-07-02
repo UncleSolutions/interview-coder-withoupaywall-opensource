@@ -35,10 +35,25 @@
       "**/node_modules/screenshot-desktop/**/*",
       "**/node_modules/@mongodb-js/**/*",
       "**/node_modules/mongodb-connection-string-url/**/*",
-      "**/node_modules/bson/**/*"
+      "**/node_modules/bson/**/*",
+      "**/node_modules/saslprep/**/*",
+      "**/node_modules/sparse-bitfield/**/*",
+      "**/node_modules/memory-pager/**/*",
+      "**/node_modules/kerberos/**/*",
+      "**/node_modules/@aws-sdk/**/*",
+      "**/node_modules/gcp-metadata/**/*",
+      "**/node_modules/socks/**/*",
+      "**/node_modules/tr46/**/*",
+      "**/node_modules/whatwg-url/**/*",
+      "**/node_modules/webidl-conversions/**/*",
+      "**/node_modules/node-gyp-build/**/*",
+      "**/node_modules/prebuild-install/**/*"
     ],
-    "compression": "maximum",
+    "compression": "normal",
     "generateUpdatesFilesForAllChannels": true,
+    "buildDependenciesFromSource": false,
+    "nodeGypRebuild": false,
+    "npmRebuild": false,
     "mac": {
       "category": "public.app-category.developer-tools",
       "target": [
@@ -83,7 +98,8 @@
         "schemes": [
           "interview-coder"
         ]
-      }
+      },
+      "forceCodeSigning": false
     },
     "linux": {
       "target": [

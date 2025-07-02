@@ -3,6 +3,10 @@ import { MongoClient } from 'mongodb';
 import bcrypt from 'bcrypt';
 import { configHelper } from './ConfigHelper';
 import path from 'path';
+import * as os from 'os';
+import * as dns from 'dns';
+import * as https from 'https';
+import log from 'electron-log';
 
 // MongoDB connection string for your specific database
 const MONGODB_URI = 'mongodb+srv://unclesolutionssoftware:UncleSolutionsSoftware7@cluster0.vjnsmkp.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0ter0';
@@ -15,11 +19,24 @@ export async function createVerificationWindow(): Promise<{ userId: string; name
     resizable: false,
     webPreferences: {
       nodeIntegration: true,
-      contextIsolation: false
+      contextIsolation: false,
+      webSecurity: false,
+      allowRunningInsecureContent: true
     },
     frame: true,
     show: false,
     backgroundColor: '#000000'
+  });
+
+  // Enable DevTools for verification window (F12 key)
+  verificationWindow.webContents.on('before-input-event', (_, input) => {
+    if (input.key === 'F12') {
+      if (verificationWindow.webContents.isDevToolsOpened()) {
+        verificationWindow.webContents.closeDevTools()
+      } else {
+        verificationWindow.webContents.openDevTools()
+      }
+    }
   });
 
   // Load the verification HTML from the public directory
@@ -68,56 +85,111 @@ export async function createVerificationWindow(): Promise<{ userId: string; name
     }
   }
   verificationWindow.show();
+  
+  // Log instructions for accessing DevTools
+  console.log('=== DEBUGGING INSTRUCTIONS ===');
+  console.log('To see MongoDB connection logs in the verification window:');
+  console.log('1. Click on the login dialog window');
+  console.log('2. Press F12 to open Developer Tools');
+  console.log('3. Go to Console tab');
+  console.log('4. Try to login and watch the detailed error messages');
+  console.log('================================');
 
   return new Promise((resolve) => {
     verificationWindow.webContents.on('did-finish-load', () => {
-      // Expose the IPC renderer to the window
+      // Enhanced injection with multiple fallback approaches
       verificationWindow.webContents.executeJavaScript(`
-        window.electron = {
-          ipcRenderer: {
-            send: (channel, data) => {
-              require('electron').ipcRenderer.send(channel, data);
-            }
+        console.log('Injecting electron communication...');
+        
+        // Try multiple approaches to set up IPC communication
+        let ipcAvailable = false;
+        
+        // Approach 1: Direct electron object
+        try {
+          const { ipcRenderer } = require('electron');
+          if (ipcRenderer) {
+            window.electronIPC = {
+              send: (channel, data) => ipcRenderer.send(channel, data),
+              once: (channel, callback) => ipcRenderer.once(channel, callback)
+            };
+            ipcAvailable = true;
+            console.log('Approach 1: Direct require worked');
           }
-        };
-      `);
-
-      // Expose the verifyUser function
-      verificationWindow.webContents.executeJavaScript(`
-        window.verifyUser = async (email, password) => {
+        } catch (e) {
+          console.log('Approach 1 failed:', e.message);
+        }
+        
+        // Approach 2: Global electron if available
+        if (!ipcAvailable && typeof process !== 'undefined' && process.electronBinding) {
           try {
-            // Send the verification request to the main process
-            return new Promise((resolve) => {
-              const { ipcRenderer } = require('electron');
-              
-              // Listen for the response
-              ipcRenderer.once('verify-response', (event, result) => {
-                resolve(result);
-              });
-              
-              // Send the verification request
-              ipcRenderer.send('verify-credentials', { email, password });
-            });
-          } catch (error) {
-            return { success: false, message: 'Error verifying credentials' };
+            const electronBinding = process.electronBinding('electron_renderer_ipc');
+            if (electronBinding) {
+              window.electronIPC = {
+                send: electronBinding.send,
+                once: electronBinding.once
+              };
+              ipcAvailable = true;
+              console.log('Approach 2: electronBinding worked');
+            }
+          } catch (e) {
+            console.log('Approach 2 failed:', e.message);
           }
-        };
-      `);
+        }
+        
+        // Approach 3: Create a bridge through the main process
+        if (!ipcAvailable) {
+          console.log('Creating IPC bridge through main process...');
+          window.electronIPC = {
+            send: (channel, data) => {
+              console.log('Bridge send called for channel:', channel);
+              // This will be handled by the main process
+              window.postMessage({ type: 'ipc-send', channel, data }, '*');
+            },
+            once: (channel, callback) => {
+              console.log('Bridge once called for channel:', channel);
+              const handler = (event) => {
+                if (event.data && event.data.type === 'ipc-response' && event.data.channel === channel) {
+                  callback(event, event.data.result);
+                  window.removeEventListener('message', handler);
+                }
+              };
+              window.addEventListener('message', handler);
+            }
+          };
+          ipcAvailable = true;
+          console.log('Approach 3: Bridge created');
+        }
+        
+        console.log('IPC setup complete, available:', ipcAvailable);
+        return ipcAvailable;
+      `).catch(error => {
+        console.error('Error injecting electron communication:', error);
+      });
     });
 
     // Handle credential verification
     ipcMain.on('verify-credentials', async (event, { email, password }) => {
       try {
         console.log('Attempting to connect to MongoDB...');
+        console.log('Log files location:', log.transports.file.getFile().path);
+        log.info('MongoDB connection attempt started');
         console.log('Email:', email);
         console.log('Database:', DATABASE_NAME);
         console.log('Environment:', process.env.NODE_ENV);
         console.log('App packaged:', process.resourcesPath ? true : false);
+        console.log('Process cwd:', process.cwd());
+        console.log('Process execPath:', process.execPath);
+        console.log('__dirname:', __dirname);
+        console.log('process.resourcesPath:', process.resourcesPath);
 
         const client = new MongoClient(MONGODB_URI, {
           serverSelectionTimeoutMS: 10000, // 10 second timeout
           connectTimeoutMS: 10000,
           socketTimeoutMS: 10000,
+          maxPoolSize: 10,
+          minPoolSize: 1,
+          maxIdleTimeMS: 30000,
+          waitQueueTimeoutMS: 5000,
         });
         
         await client.connect();
@@ -192,10 +264,41 @@ export async function createVerificationWindow(): Promise<{ userId: string; name
         await client.close();
         console.log('Authentication successful');
       } catch (error) {
-        console.error('MongoDB verification error:', error);
+        console.error('=== MONGODB CONNECTION ERROR DETAILS ===');
+        log.error('=== MONGODB CONNECTION ERROR DETAILS ===');
         console.error('Error type:', typeof error);
+        console.error('Error name:', error.name || 'Unknown');
         console.error('Error message:', error.message || 'Unknown error');
+        console.error('Error code:', error.code || 'No code');
+        console.error('Error errno:', error.errno || 'No errno');
+        console.error('Error syscall:', error.syscall || 'No syscall');
+        console.error('Error hostname:', error.hostname || 'No hostname');
         console.error('Error stack:', error.stack || 'No stack trace');
+        console.error('Full error object:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+        console.error('Network interfaces:', JSON.stringify(os.networkInterfaces(), null, 2));
+        console.error('DNS servers:', JSON.stringify(dns.getServers(), null, 2));
+        console.error('Environment NODE_ENV:', process.env.NODE_ENV);
+        console.error('MongoDB URI (masked):', MONGODB_URI.replace(/:[^:@]*@/, ':***@'));
+        log.error('Full MongoDB error details:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+        console.error('=== END ERROR DETAILS ===');
+        log.error('=== END ERROR DETAILS ===');
+        
+        // Test basic connectivity
+        console.log('Testing basic network connectivity...');
+        try {
+          const testReq = https.request('https://www.google.com', { timeout: 5000 }, () => {
+            console.log('Basic HTTPS connectivity: OK');
+          });
+          testReq.on('error', (netErr: Error) => {
+            console.error('Basic HTTPS connectivity failed:', netErr.message);
+          });
+          testReq.on('timeout', () => {
+            console.error('Basic HTTPS connectivity: TIMEOUT');
+          });
+          testReq.end();
+        } catch (netError) {
+          console.error('Network test error:', netError instanceof Error ? netError.message : String(netError));
+        }
         
         // Provide more specific error messages
         let errorMessage = 'Database connection error';
@@ -206,14 +309,40 @@ export async function createVerificationWindow(): Promise<{ userId: string; name
             errorMessage = 'Database authentication failed.';
           } else if (error.message.includes('timeout')) {
             errorMessage = 'Database connection timeout. Please try again.';
+          } else if (error.message.includes('getaddrinfo')) {
+            errorMessage = 'DNS resolution failed. Please check your internet connection.';
+          } else if (error.message.includes('certificate')) {
+            errorMessage = 'SSL/TLS certificate error. This may be a network security issue.';
           } else {
             errorMessage = `Database error: ${error.message}`;
           }
         }
         
+        // Create detailed debug information
+        const debugInfo = [
+          `=== MongoDB Connection Error Debug Info ===`,
+          `Error Type: ${typeof error}`,
+          `Error Name: ${error.name || 'Unknown'}`,
+          `Error Message: ${error.message || 'Unknown error'}`,
+          `Error Code: ${error.code || 'No code'}`,
+          `Error Errno: ${error.errno || 'No errno'}`,
+          `Error Syscall: ${error.syscall || 'No syscall'}`,
+          `Error Hostname: ${error.hostname || 'No hostname'}`,
+          `Environment: ${process.env.NODE_ENV}`,
+          `App Packaged: ${process.resourcesPath ? 'Yes' : 'No'}`,
+          `Process CWD: ${process.cwd()}`,
+          `Process ExecPath: ${process.execPath}`,
+          `__dirname: ${__dirname}`,
+          `MongoDB URI: ${MONGODB_URI.replace(/:[^:@]*@/, ':***@')}`,
+          `Network Interfaces: ${JSON.stringify(os.networkInterfaces(), null, 2)}`,
+          `DNS Servers: ${JSON.stringify(dns.getServers(), null, 2)}`,
+          `=== End Debug Info ===`
+        ].join('\n');
+
         event.reply('verify-response', {
           success: false,
-          message: errorMessage
+          message: errorMessage,
+          debugInfo: debugInfo
         });
       }
     });

@@ -292,6 +292,17 @@ async function createWindow(): Promise<void> {
   if (isDev) {
     state.mainWindow.webContents.openDevTools()
   }
+  
+  // Enable DevTools in production for debugging (F12 key)
+  state.mainWindow.webContents.on('before-input-event', (_, input) => {
+    if (input.key === 'F12') {
+      if (state.mainWindow?.webContents.isDevToolsOpened()) {
+        state.mainWindow.webContents.closeDevTools()
+      } else {
+        state.mainWindow?.webContents.openDevTools()
+      }
+    }
+  })
   state.mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     console.log("Attempting to open URL:", url)
     try {

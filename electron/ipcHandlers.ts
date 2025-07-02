@@ -4,6 +4,7 @@ import { ipcMain, shell, dialog } from "electron"
 import { randomBytes } from "crypto"
 import { IIpcHandlerDeps } from "./main"
 import { configHelper } from "./ConfigHelper"
+import log from 'electron-log'
 
 export function initializeIpcHandlers(deps: IIpcHandlerDeps): void {
   console.log("Initializing IPC handlers")
@@ -348,4 +349,18 @@ export function initializeIpcHandlers(deps: IIpcHandlerDeps): void {
       return { success: false, error: "Failed to delete last screenshot" }
     }
   })
+
+  // Debug log file location handler
+  ipcMain.handle("get-log-file-path", () => {
+    try {
+      const logPath = log.transports.file.getFile().path
+      console.log('Log file location requested:', logPath)
+      return { success: true, path: logPath }
+    } catch (error) {
+      console.error('Error getting log file path:', error)
+      return { success: false, error: 'Could not get log file path' }
+    }
+  })
+
+  console.log("IPC handlers initialized successfully")
 }
