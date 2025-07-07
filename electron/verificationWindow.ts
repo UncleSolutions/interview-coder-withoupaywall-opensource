@@ -200,7 +200,6 @@ export async function createVerificationWindow(): Promise<{ userId: string; name
 
         // First, let's see all users in the collection for debugging
         const allUsers = await usersCollection.find({}).toArray();
-        console.log('All users in collection:', allUsers.map(u => ({ email: u.email, name: u.name, hasPassword: !!u.password })));
 
         // Find user by email
         const user = await usersCollection.findOne({ email: email.toLowerCase() });
